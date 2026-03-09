@@ -54,7 +54,7 @@ BZLMOD_ENABLED = "@@" in str(Label("//:unused"))
 
 def _empty_repository(rctx):
     rctx.file("BUILD.bazel")
-    rctx.file("toolchains.bzl", """\
+    rctx.file("toolchains.bzl", """
 def llvm_register_toolchains():
     pass
 """)
@@ -131,7 +131,7 @@ def llvm_config_impl(rctx):
         for tool_name, symlink_name in tools.items():
             rctx.symlink(llvm_dist_rel_path + "bin/" + tool_name, tools_path_prefix + symlink_name)
         symlinked_tools_str = "".join([
-            "\n" + (" " * 8) + "\"" + tools_path_prefix + symlink_name + "\","
+            "\n" + (" " * 8) + \"\"" + tools_path_prefix + symlink_name + \"\","
             for symlink_name in tools.values()
         ])
     else:
@@ -142,7 +142,7 @@ def llvm_config_impl(rctx):
         # No symlinking necessary when using absolute paths.
         wrapper_bin_prefix = "bin/"
         tools_path_prefix = llvm_dist_path_prefix + "bin/"
-        symlinked_tools_str = ""
+        symlinked_tools_str = """
 
     sysroot_paths_dict, sysroot_labels_dict = _sysroot_paths_dict(
         rctx,
@@ -172,6 +172,15 @@ def llvm_config_impl(rctx):
     for k, v in cxx_lib_link_flags.items():
         merged_extra_link_flags[k] = merged_extra_link_flags.get(k, []) + v
 
+    # Auto-set stdlib to "libc++" for target pairs that have cxx_lib configured
+    # but no explicit stdlib override. This prevents the builtin-libc++ ->
+    # stdc++ cross-compile fallback in cc_toolchain_config.bzl from kicking in,
+    # since the user has provided the actual libc++ libraries via cxx_lib.
+    merged_stdlib = dict(rctx.attr.stdlib)
+    for target_pair in rctx.attr.cxx_lib.keys():
+        if target_pair not in merged_stdlib:
+            merged_stdlib[target_pair] = "libc++"
+
     workspace_name = rctx.name
     toolchain_info = struct(
         os = os,
@@ -184,7 +193,7 @@ def llvm_config_impl(rctx):
         sysroot_labels_dict = sysroot_labels_dict,
         target_settings_dict = rctx.attr.target_settings,
         additional_include_dirs_dict = merged_include_dirs,
-        stdlib_dict = rctx.attr.stdlib,
+        stdlib_dict = merged_stdlib,
         cxx_standard_dict = rctx.attr.cxx_standard,
         compile_flags_dict = rctx.attr.compile_flags,
         conly_flags_dict = rctx.attr.conly_flags,
@@ -312,7 +321,7 @@ def _cc_toolchains_str(
             toolchain_names.append(toolchain_name)
 
     sep = ",\n" + " " * 8  # 2 tabs with tabstop=4.
-    toolchain_labels_str = sep.join(["\"{}\"".format(d) for d in toolchain_names])
+    toolchain_labels_str = sep.join(["\"{}\".format(d) for d in toolchain_names])
     return cc_toolchains_str, toolchain_labels_str
 
 # Gets a value from the dict for the target pair, falling back to an empty
@@ -341,7 +350,7 @@ def _cc_toolchain_str(
     if sysroot_label:
         sysroot_label_str = repr(str(sysroot_label))
     else:
-        sysroot_label_str = ""
+        sysroot_label_str = """
 
     if not sysroot_path:
         if exec_os == target_os and exec_arch == target_arch:
@@ -352,7 +361,7 @@ def _cc_toolchain_str(
         else:
             # We are trying to cross-compile without a sysroot, let's bail.
             # TODO: Are there other situations where we can continue?
-            return ""
+            return """
 
     extra_files_str = repr(":internal-use-tools" if bazel_features.rules.merkle_cache_v2 else ":internal-use-tools-legacy")
 
@@ -439,48 +448,48 @@ cc_toolchain_config(
       "sysroot_path": "{sysroot_path}",
       "stdlib": "{stdlib}",
       "cxx_standard": "{cxx_standard}",
-      "compile_flags": {compile_flags},
-      "conly_flags": {conly_flags},
-      "cxx_flags": {cxx_flags},
-      "link_flags": {link_flags},
-      "archive_flags": {archive_flags},
-      "link_libs": {link_libs},
-      "fastbuild_compile_flags": {fastbuild_compile_flags},
-      "opt_compile_flags": {opt_compile_flags},
-      "opt_link_flags": {opt_link_flags},
-      "dbg_compile_flags": {dbg_compile_flags},
-      "coverage_compile_flags": {coverage_compile_flags},
-      "coverage_link_flags": {coverage_link_flags},
-      "unfiltered_compile_flags": {unfiltered_compile_flags},
-      "extra_compile_flags": {extra_compile_flags},
-      "extra_cxx_flags": {extra_cxx_flags},
-      "extra_link_flags": {extra_link_flags},
-      "extra_archive_flags": {extra_archive_flags},
-      "extra_link_libs": {extra_link_libs},
-      "extra_opt_compile_flags": {extra_opt_compile_flags},
-      "extra_opt_link_flags": {extra_opt_link_flags},
-      "extra_dbg_compile_flags": {extra_dbg_compile_flags},
-      "extra_coverage_compile_flags": {extra_coverage_compile_flags},
-      "extra_coverage_link_flags": {extra_coverage_link_flags},
-      "extra_unfiltered_compile_flags": {extra_unfiltered_compile_flags},
+      "compile_flags": {{compile_flags}},
+      "conly_flags": {{conly_flags}},
+      "cxx_flags": {{cxx_flags}},
+      "link_flags": {{link_flags}},
+      "archive_flags": {{archive_flags}},
+      "link_libs": {{link_libs}},
+      "fastbuild_compile_flags": {{fastbuild_compile_flags}},
+      "opt_compile_flags": {{opt_compile_flags}},
+      "opt_link_flags": {{opt_link_flags}},
+      "dbg_compile_flags": {{dbg_compile_flags}},
+      "coverage_compile_flags": {{coverage_compile_flags}},
+      "coverage_link_flags": {{coverage_link_flags}},
+      "unfiltered_compile_flags": {{unfiltered_compile_flags}},
+      "extra_compile_flags": {{extra_compile_flags}},
+      "extra_cxx_flags": {{extra_cxx_flags}},
+      "extra_link_flags": {{extra_link_flags}},
+      "extra_archive_flags": {{extra_archive_flags}},
+      "extra_link_libs": {{extra_link_libs}},
+      "extra_opt_compile_flags": {{extra_opt_compile_flags}},
+      "extra_opt_link_flags": {{extra_opt_link_flags}},
+      "extra_dbg_compile_flags": {{extra_dbg_compile_flags}},
+      "extra_coverage_compile_flags": {{extra_coverage_compile_flags}},
+      "extra_coverage_link_flags": {{extra_coverage_link_flags}},
+      "extra_unfiltered_compile_flags": {{extra_unfiltered_compile_flags}},
     }},
-    extra_known_features = {extra_known_features},
-    extra_enabled_features = {extra_enabled_features},
-    cxx_builtin_include_directories = {cxx_builtin_include_directories},
-    major_llvm_version = {major_llvm_version},
+    extra_known_features = {{extra_known_features}},
+    extra_enabled_features = {{extra_enabled_features}},
+    cxx_builtin_include_directories = {{cxx_builtin_include_directories}},
+    major_llvm_version = {{major_llvm_version}},
 )
 
 toolchain(
     name = "cc-toolchain-{suffix}",
     exec_compatible_with = [
-        "@platforms//cpu:{exec_arch}",
-        "@platforms//os:{exec_os_bzl}",
-    ] + {extra_exec_compatible_with_specific} + {extra_exec_compatible_with_all_targets},
+        "@platforms//cpu:{{exec_arch}}",
+        "@platforms//os:{{exec_os_bzl}}",
+    ] + {{extra_exec_compatible_with_specific}} + {{extra_exec_compatible_with_all_targets}},
     target_compatible_with = [
-        "@platforms//cpu:{target_arch}",
-        "@platforms//os:{target_os_bzl}",
-    ] + {extra_target_compatible_with_specific} + {extra_target_compatible_with_all_targets},
-    target_settings = {target_settings},
+        "@platforms//cpu:{{target_arch}}",
+        "@platforms//os:{{target_os_bzl}}",
+    ] + {{extra_target_compatible_with_specific}} + {{extra_target_compatible_with_all_targets}},
+    target_settings = {{target_settings}},
     toolchain = ":cc-clang-{suffix}",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
@@ -501,7 +510,7 @@ filegroup(
 )
 
 filegroup(
-    name = "compiler-components-{suffix}",
+    name = "compiler-components-{suffix} I",
     srcs = [
         ":sysroot-components-{suffix}",
         {extra_compiler_files}
@@ -534,7 +543,7 @@ filegroup(name = "strip-files-{suffix}", srcs = [{extra_files_str}])
         template = template + """
 filegroup(
     name = "cxx_builtin_include_files-{suffix}",
-    srcs = ["{llvm_dist_label_prefix}{cxx_builtin_include_label}"],
+    srcs = [":cxx_builtin_include_files-{suffix}", {llvm_dist_label_prefix}{cxx_builtin_include_label}],
 )
 
 filegroup(
@@ -579,10 +588,11 @@ filegroup(name = "strip-files-{suffix}", srcs = ["{llvm_dist_label_prefix}strip"
 """
 
     template = template + """
+
 system_module_map(
     name = "module-{suffix}",
     cxx_builtin_include_files = ":cxx_builtin_include_files-{suffix}",
-    cxx_builtin_include_directories = {cxx_builtin_include_directories},
+    cxx_builtin_include_directories = {{cxx_builtin_include_directories}},
     sysroot_files = ":sysroot-components-{suffix}",
     sysroot_path = "{sysroot_path}",
 )
@@ -677,7 +687,7 @@ def _convenience_targets_str(rctx, use_absolute_paths, llvm_dist_rel_path, llvm_
         llvm_dist_label_prefix = ":"
         filenames = []
         for libname in _aliased_libs:
-            filename = "lib/{}.{}".format(libname, exec_dl_ext)
+            filename = "lib/{}.{{exec_dl_ext}}".format(libname)
             filenames.append(filename)
         for toolname in _aliased_tools:
             filename = "bin/{}".format(toolname)
