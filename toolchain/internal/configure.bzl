@@ -150,6 +150,28 @@ def llvm_config_impl(rctx):
         use_absolute_paths_sysroot,
     )
 
+    # Resolve cross-compile C++ standard library paths.
+    cxx_lib_include_dirs = {}
+    cxx_lib_link_flags = {}
+    for target_pair, cxx_lib_label_str in rctx.attr.cxx_lib.items():
+        cxx_lib_label = Label(cxx_lib_label_str)
+        cxx_lib_path = _pkg_path_from_label(cxx_lib_label)
+        cxx_lib_include_dirs[target_pair] = [
+            "%workspace%/" + cxx_lib_path + "/include",
+        ]
+        cxx_lib_link_flags[target_pair] = [
+            "-L%workspace%/" + cxx_lib_path + "/lib",
+        ]
+
+    # Merge cxx_lib paths into include dirs and link flags.
+    merged_include_dirs = dict(rctx.attr.cxx_builtin_include_directories)
+    for k, v in cxx_lib_include_dirs.items():
+        merged_include_dirs[k] = merged_include_dirs.get(k, []) + v
+
+    merged_extra_link_flags = dict(rctx.attr.extra_link_flags)
+    for k, v in cxx_lib_link_flags.items():
+        merged_extra_link_flags[k] = merged_extra_link_flags.get(k, []) + v
+
     workspace_name = rctx.name
     toolchain_info = struct(
         os = os,
@@ -161,7 +183,7 @@ def llvm_config_impl(rctx):
         sysroot_paths_dict = sysroot_paths_dict,
         sysroot_labels_dict = sysroot_labels_dict,
         target_settings_dict = rctx.attr.target_settings,
-        additional_include_dirs_dict = rctx.attr.cxx_builtin_include_directories,
+        additional_include_dirs_dict = merged_include_dirs,
         stdlib_dict = rctx.attr.stdlib,
         cxx_standard_dict = rctx.attr.cxx_standard,
         compile_flags_dict = rctx.attr.compile_flags,
@@ -183,7 +205,7 @@ def llvm_config_impl(rctx):
         extra_target_compatible_with = rctx.attr.extra_target_compatible_with,
         extra_compile_flags_dict = rctx.attr.extra_compile_flags,
         extra_cxx_flags_dict = rctx.attr.extra_cxx_flags,
-        extra_link_flags_dict = rctx.attr.extra_link_flags,
+        extra_link_flags_dict = merged_extra_link_flags,
         extra_archive_flags_dict = rctx.attr.extra_archive_flags,
         extra_link_libs_dict = rctx.attr.extra_link_libs,
         extra_opt_compile_flags_dict = rctx.attr.extra_opt_compile_flags,
