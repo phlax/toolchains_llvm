@@ -153,6 +153,7 @@ def llvm_config_impl(rctx):
     # Resolve cross-compile C++ standard library paths.
     cxx_lib_include_dirs = {}
     cxx_lib_link_flags = {}
+    cxx_lib_cxx_flags = {}
     for target_pair, cxx_lib_label_str in rctx.attr.cxx_lib.items():
         cxx_lib_label = Label(cxx_lib_label_str)
         cxx_lib_path = _pkg_path_from_label(cxx_lib_label)
@@ -162,8 +163,12 @@ def llvm_config_impl(rctx):
         cxx_lib_link_flags[target_pair] = [
             "-L" + _canonical_dir_path("../../" + cxx_lib_path) + "lib",
         ]
+        cxx_lib_cxx_flags[target_pair] = [
+            "-isystem",
+            _canonical_dir_path("../../" + cxx_lib_path) + "include",
+        ]
 
-    # Merge cxx_lib paths into include dirs and link flags.
+    # Merge cxx_lib paths into include dirs, link flags, and cxx flags.
     merged_include_dirs = dict(rctx.attr.cxx_builtin_include_directories)
     for k, v in cxx_lib_include_dirs.items():
         merged_include_dirs[k] = merged_include_dirs.get(k, []) + v
@@ -171,6 +176,10 @@ def llvm_config_impl(rctx):
     merged_extra_link_flags = dict(rctx.attr.extra_link_flags)
     for k, v in cxx_lib_link_flags.items():
         merged_extra_link_flags[k] = merged_extra_link_flags.get(k, []) + v
+
+    merged_extra_cxx_flags = dict(rctx.attr.extra_cxx_flags)
+    for k, v in cxx_lib_cxx_flags.items():
+        merged_extra_cxx_flags[k] = merged_extra_cxx_flags.get(k, []) + v
 
     # Auto-set stdlib to "libc++" for target pairs that have cxx_lib configured
     # but no explicit stdlib override. This prevents the builtin-libc++ ->
@@ -213,7 +222,7 @@ def llvm_config_impl(rctx):
         extra_exec_compatible_with = rctx.attr.extra_exec_compatible_with,
         extra_target_compatible_with = rctx.attr.extra_target_compatible_with,
         extra_compile_flags_dict = rctx.attr.extra_compile_flags,
-        extra_cxx_flags_dict = rctx.attr.extra_cxx_flags,
+        extra_cxx_flags_dict = merged_extra_cxx_flags,
         extra_link_flags_dict = merged_extra_link_flags,
         extra_archive_flags_dict = rctx.attr.extra_archive_flags,
         extra_link_libs_dict = rctx.attr.extra_link_libs,
