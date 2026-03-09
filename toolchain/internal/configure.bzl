@@ -543,7 +543,7 @@ filegroup(name = "strip-files-{suffix}", srcs = [{extra_files_str}])
         template = template + """
 filegroup(
     name = "cxx_builtin_include_files-{suffix}",
-    srcs = [":cxx_builtin_include_files-{suffix}", {llvm_dist_label_prefix}{cxx_builtin_include_label}],
+    srcs = ["{llvm_dist_label_prefix}{cxx_builtin_include_label}"],
 )
 
 filegroup(
