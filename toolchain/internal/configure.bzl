@@ -150,6 +150,37 @@ def llvm_config_impl(rctx):
         use_absolute_paths_sysroot,
     )
 
+    # Resolve cross-compile C++ standard library paths.
+    cxx_lib_include_dirs = {}
+    cxx_lib_link_flags = {}
+    for target_pair, cxx_lib_label_str in rctx.attr.cxx_lib.items():
+        cxx_lib_label = Label(cxx_lib_label_str)
+        cxx_lib_path = _pkg_path_from_label(cxx_lib_label)
+        cxx_lib_include_dirs[target_pair] = [
+            "%workspace%/" + cxx_lib_path + "/include",
+        ]
+        cxx_lib_link_flags[target_pair] = [
+            "-L" + _canonical_dir_path("../../" + cxx_lib_path) + "lib",
+        ]
+
+    # Merge cxx_lib paths into include dirs and link flags.
+    merged_include_dirs = dict(rctx.attr.cxx_builtin_include_directories)
+    for k, v in cxx_lib_include_dirs.items():
+        merged_include_dirs[k] = merged_include_dirs.get(k, []) + v
+
+    merged_extra_link_flags = dict(rctx.attr.extra_link_flags)
+    for k, v in cxx_lib_link_flags.items():
+        merged_extra_link_flags[k] = merged_extra_link_flags.get(k, []) + v
+
+    # Auto-set stdlib to "libc++" for target pairs that have cxx_lib configured
+    # but no explicit stdlib override. This prevents the builtin-libc++ ->
+    # stdc++ cross-compile fallback in cc_toolchain_config.bzl from kicking in,
+    # since the user has provided the actual libc++ libraries via cxx_lib.
+    merged_stdlib = dict(rctx.attr.stdlib)
+    for target_pair in rctx.attr.cxx_lib.keys():
+        if target_pair not in merged_stdlib:
+            merged_stdlib[target_pair] = "libc++"
+
     workspace_name = rctx.name
     toolchain_info = struct(
         os = os,
@@ -161,8 +192,8 @@ def llvm_config_impl(rctx):
         sysroot_paths_dict = sysroot_paths_dict,
         sysroot_labels_dict = sysroot_labels_dict,
         target_settings_dict = rctx.attr.target_settings,
-        additional_include_dirs_dict = rctx.attr.cxx_builtin_include_directories,
-        stdlib_dict = rctx.attr.stdlib,
+        additional_include_dirs_dict = merged_include_dirs,
+        stdlib_dict = merged_stdlib,
         cxx_standard_dict = rctx.attr.cxx_standard,
         compile_flags_dict = rctx.attr.compile_flags,
         conly_flags_dict = rctx.attr.conly_flags,
@@ -183,7 +214,7 @@ def llvm_config_impl(rctx):
         extra_target_compatible_with = rctx.attr.extra_target_compatible_with,
         extra_compile_flags_dict = rctx.attr.extra_compile_flags,
         extra_cxx_flags_dict = rctx.attr.extra_cxx_flags,
-        extra_link_flags_dict = rctx.attr.extra_link_flags,
+        extra_link_flags_dict = merged_extra_link_flags,
         extra_archive_flags_dict = rctx.attr.extra_archive_flags,
         extra_link_libs_dict = rctx.attr.extra_link_libs,
         extra_opt_compile_flags_dict = rctx.attr.extra_opt_compile_flags,
@@ -512,7 +543,7 @@ filegroup(name = "strip-files-{suffix}", srcs = [{extra_files_str}])
         template = template + """
 filegroup(
     name = "cxx_builtin_include_files-{suffix}",
-    srcs = ["{llvm_dist_label_prefix}{cxx_builtin_include_label}"],
+    srcs = [":cxx_builtin_include_files-{suffix}", {llvm_dist_label_prefix}{cxx_builtin_include_label}],
 )
 
 filegroup(
